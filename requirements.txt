@@ -10,3 +10,5 @@ faiss-cpu
 python-docx
 openpyxl
 pandas
+streamlit
+requests
