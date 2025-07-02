@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 fastapi==0.111.0
 uvicorn==0.30.1
 streamlit==1.36.0
@@ -12,3 +13,19 @@ langchain-ollama==0.2.6
 faiss-cpu==1.8.0 # Or faiss-gpu if you have a GPU and want to use it
 pydantic-settings==2.3.4
 requests
+=======
+fastapi
+uvicorn
+pydantic
+pydantic-settings
+langchain-community
+PyMuPDF
+langchain-text-splitters
+ollama-python
+faiss-cpu
+python-docx
+openpyxl
+pandas
+streamlit
+requests
+>>>>>>> 3b4fb9fed8b8db3672640f47d1c00586eb24c938
