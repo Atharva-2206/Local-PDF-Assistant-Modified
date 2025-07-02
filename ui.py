@@ -1,94 +1,126 @@
+# ui.py
 import streamlit as st
 import requests
+import time
 import os
 
-# Define the base URL for the FastAPI backend
-BACKEND_URL = "http://127.0.0.1:8000"
+BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
 
-st.set_page_config(page_title="Chat with your Documents", layout="wide")
+st.set_page_config(page_title="Multi-Document Chat", layout="wide")
 st.title("📄 Chat with your Documents")
 
-# --- FILE UPLOADER AND PROCESSING ---
+def display_job_status(job_id):
+    st.info(f"Processing job ID: {job_id}. This window will update automatically.")
+    with st.empty():
+        while True:
+            try:
+                response = requests.get(f"{BACKEND_URL}/status/{job_id}")
+                if response.status_code == 200:
+                    job_data = response.json()
+                    status = job_data.get("status")
+                    details = job_data.get("details")
+
+                    if status == "complete":
+                        st.success("✔️ Processing complete!")
+                        st.session_state.processed_data = details # Save the entire result object
+                        del st.session_state.job_id
+                        break
+                    elif status == "failed":
+                        st.error(f"❌ Processing Failed: {details}")
+                        del st.session_state.job_id
+                        break
+                    else:
+                        st.write(f"⏳ Status: {status} - {details}")
+                else:
+                    time.sleep(2)
+            except requests.exceptions.RequestException:
+                st.write("Connecting to backend...")
+            time.sleep(2)
+    st.rerun()
+
+# --- Sidebar for File Upload ---
 with st.sidebar:
     st.header("1. Upload Documents")
-    # Allow multiple files to be uploaded
     uploaded_files = st.file_uploader(
-        "Upload your files (.pdf, .docx, .txt, .csv, .xlsx, .zip)", 
+        "Upload a ZIP or multiple files",
         type=['pdf', 'docx', 'txt', 'csv', 'xlsx', 'zip'],
         accept_multiple_files=True
     )
-
     if st.button("Process Files") and uploaded_files:
-        with st.spinner("Processing files... This may take a moment."):
-            # Prepare files for the multipart/form-data request
-            files_to_send = []
-            for file in uploaded_files:
-                files_to_send.append(("files", (file.name, file.getvalue(), file.type)))
-            
+        with st.spinner("Submitting files..."):
+            files_to_send = [("files", (f.name, f.getvalue(), f.type)) for f in uploaded_files]
             try:
-                # Make the request to the backend's /process/ endpoint
                 response = requests.post(f"{BACKEND_URL}/process/", files=files_to_send)
-                
-                if response.status_code == 200:
-                    # Store the successful transaction_id in the session state
-                    st.session_state.transaction_id = response.json().get("transaction_id")
-                    st.session_state.messages = [] # Reset chat history
-                    st.success(f"Files processed successfully! Transaction ID: {st.session_state.transaction_id}")
+                if response.status_code == 202:
+                    job_id = response.json().get("job_id")
+                    st.session_state.job_id = job_id
+                    if 'processed_data' in st.session_state:
+                        del st.session_state['processed_data']
+                    st.rerun()
                 else:
-                    st.error(f"Error processing files: {response.text}")
+                    st.error(f"Failed to start processing: {response.text}")
             except requests.exceptions.RequestException as e:
                 st.error(f"Could not connect to the backend: {e}")
 
-# --- CHAT INTERFACE ---
-st.header("2. Chat about your Documents")
+# --- Main Page Logic ---
 
-# Only show the chat interface if files have been successfully processed
-if "transaction_id" in st.session_state:
+# If a job is active, show the status.
+if 'job_id' in st.session_state:
+    display_job_status(st.session_state.job_id)
+
+# If processing is complete, set up the chat interface.
+elif 'processed_data' in st.session_state:
+    st.header("2. Chat about your Documents")
     
-    # Initialize chat history in session state if it doesn't exist
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+    # Create a dictionary for the user to select from
+    processed_files = st.session_state.processed_data['files']
+    master_id = st.session_state.processed_data['master_id']
+    
+    chat_options = {"All Documents": master_id}
+    for file_info in processed_files:
+        chat_options[file_info['filename']] = file_info['transaction_id']
+        
+    # Create the dropdown menu (selectbox)
+    selected_doc_name = st.selectbox(
+        "Choose a document to chat with:",
+        options=list(chat_options.keys())
+    )
+    
+    # Get the corresponding transaction ID for the selected document
+    selected_txn_id = chat_options[selected_doc_name]
+    
+    # Use a unique key for the chat history based on the selected document
+    chat_history_key = f"messages_{selected_txn_id}"
+    if chat_history_key not in st.session_state:
+        st.session_state[chat_history_key] = []
 
-    # Display past chat messages
-    for author, message in st.session_state.messages:
+    # Display past messages for the selected document
+    for author, message in st.session_state[chat_history_key]:
         with st.chat_message(author):
             st.markdown(message)
 
-    # The chat input box at the bottom of the screen
-    if prompt := st.chat_input("Ask a question about your documents..."):
-        
-        # Add user's message to the chat history and display it
-        st.session_state.messages.append(("user", prompt))
+    if prompt := st.chat_input(f"Ask about {selected_doc_name}..."):
+        st.session_state[chat_history_key].append(("user", prompt))
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        # Prepare the chat history for the API call
-        history_for_api = []
-        for i in range(0, len(st.session_state.messages) - 1, 2):
-            user_msg = st.session_state.messages[i]
-            assistant_msg = st.session_state.messages[i+1]
-            if user_msg[0] == "user" and assistant_msg[0] == "assistant":
-                history_for_api.append((user_msg[1], assistant_msg[1]))
-        
+        history_for_api = [(q, a) for q, a in st.session_state[chat_history_key] if a is not None]
+
         chat_data = {
             "query": prompt,
-            "transaction_id": st.session_state.transaction_id,
+            "transaction_id": selected_txn_id, # Use the selected ID
             "chat_history": history_for_api
         }
         
-        # Get the AI's response from the backend
         with st.spinner("Thinking..."):
-            try:
-                response = requests.post(f"{BACKEND_URL}/chat/", json=chat_data)
-                if response.status_code == 200:
-                    ai_response = response.json().get("response")
-                    # Add AI's response to the chat history and display it
-                    st.session_state.messages.append(("assistant", ai_response))
-                    with st.chat_message("assistant"):
-                        st.markdown(ai_response)
-                else:
-                    st.error(f"Error getting response from chat: {response.text}")
-            except requests.exceptions.RequestException as e:
-                st.error(f"Could not connect to the backend: {e}")
+            response = requests.post(f"{BACKEND_URL}/chat/", json=chat_data)
+            if response.status_code == 200:
+                ai_response = response.json().get("response")
+                st.session_state[chat_history_key].append(("assistant", ai_response))
+                st.rerun() # Rerun to display the new message immediately
+            else:
+                st.error(f"Error from chat backend: {response.text}")
+
+# If no job is active, show the initial message.
 else:
     st.info("Please upload and process your documents in the sidebar to begin chatting.")

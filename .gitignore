@@ -1,0 +1,27 @@
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+        modified:   .env
+        modified:   __pycache__/app.cpython-313.pyc
+        modified:   app.py
+        modified:   backend/__pycache__/chat_engine.cpython-313.pyc
+        modified:   backend/__pycache__/config.cpython-313.pyc
+        modified:   backend/__pycache__/file_processor.cpython-313.pyc
+        modified:   backend/__pycache__/vectorstore_manager.cpython-313.pyc
+        modified:   backend/chat_engine.py
+        modified:   backend/config.py
+        modified:   backend/file_processor.py
+        modified:   backend/vectorstore_manager.py
+        modified:   requirements.txt
+        modified:   routes/__pycache__/api_process.cpython-313.pyc
+        modified:   routes/api_process.py
+        modified:   ui.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+        backend/__pycache__/file_helper.cpython-313.pyc
+        backend/__pycache__/job_manager.cpython-313.pyc
+        backend/job_manager.py
+        debug_extractor.py
+        routes/__pycache__/api_status.cpython-313.pyc
+        routes/api_status.py

@@ -1,6 +1,8 @@
+# app.py
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes import api_process, api_chat
+from routes import api_process, api_chat, api_status # Import api_status
 
 # This is the main application instance
 app = FastAPI()
@@ -8,9 +10,10 @@ app = FastAPI()
 # Include routers from the routes package
 app.include_router(api_process.router)
 app.include_router(api_chat.router)
+app.include_router(api_status.router) # Include the new status router
 
-# Add CORS middleware to allow all origins
-# This is the same configuration from your original app_ui.py
+# ... rest of the file is unchanged ...
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
